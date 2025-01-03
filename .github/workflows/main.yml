@@ -1,4 +1,4 @@
-name: Resource Manager
+name: Menssege Brocker
 
 on:
   workflow_dispatch:
