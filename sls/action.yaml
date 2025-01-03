@@ -1,0 +1,137 @@
+image:
+  name: bgcbr/bgc-docker-image:rds-sequelize-node20.10
+  username: $DOCKER_HUB_USERNAME
+  password: $DOCKER_HUB_PASSWORD
+  email: $DOCKER_HUB_EMAIL
+
+prepare: &prepare
+  - if [ $BITBUCKET_DEPLOYMENT_ENVIRONMENT = "staging" ] && [ $BITBUCKET_PR_DESTINATION_BRANCH != "master" ]; then exit 0; fi
+  - if [ $BITBUCKET_DEPLOYMENT_ENVIRONMENT = "staging" ]; then git merge origin/master --no-edit || exit $CONFLICT_EXIT_CODE; fi
+  - npm ci
+
+build-deploy: &build-deploy # aws config
+  - export AWS_WEB_IDENTITY_TOKEN_FILE=$(pwd)/web-identity-token
+  - echo $BITBUCKET_STEP_OIDC_TOKEN > $AWS_WEB_IDENTITY_TOKEN_FILE
+  - aws configure set web_identity_token_file $AWS_WEB_IDENTITY_TOKEN_FILE --profile $STAGE-bgc
+  - aws configure set role_arn $AWS_ROLE_ARN --profile $STAGE-bgc
+  - aws configure set source_profile $STAGE --profile $STAGE-bgc
+  - aws sts assume-role-with-web-identity --role-arn $AWS_ROLE_ARN --role-session-name build-session --web-identity-token "$BITBUCKET_STEP_OIDC_TOKEN" --duration-seconds 1200 > assumed-role-output.json
+  - export AWS_ACCESS_KEY_ID=$(cat assumed-role-output.json | fx .Credentials | fx .AccessKeyId | tr -d '"')
+  - export AWS_SECRET_ACCESS_KEY=$(cat assumed-role-output.json | fx .Credentials | fx .SecretAccessKey | tr -d '"')
+  - export AWS_SESSION_TOKEN=$(cat assumed-role-output.json | fx .Credentials | fx .SessionToken | tr -d '"')
+  - aws configure set aws_session_token $AWS_SESSION_TOKEN --profile $STAGE-bgc
+  - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID --profile $STAGE-bgc
+  - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY --profile $STAGE-bgc
+
+  - bash ./src/scripts/ci/prepare-prisma-client-lambda-layer.sh
+  # proper deploy
+  - export SLS_DEBUG=true
+  - export AWS_PROFILE=$STAGE-bgc
+  - serverless deploy --stage $STAGE --verbose
+  - unset SLS_DEBUG
+  - sls export-env -s $STAGE --aws-profile $AWS_PROFILE
+
+migrate: &migrate
+  - npx prisma migrate deploy
+
+after-script: &after-script
+  - if [ $BITBUCKET_EXIT_CODE -eq 1 ]; then
+  - curl -X POST -H "Content-Type:application/json" -d '{"embeds":[{"title":"'$BITBUCKET_REPO_FULL_NAME' - Deploy to '$STAGE' failed!","type":"rich","description":"The last deploy to '$STAGE' failed! This CI/CD execution can be found at https://bitbucket.org/'$BITBUCKET_REPO_FULL_NAME'/addon/pipelines/home#!/results/'$BITBUCKET_PIPELINE_UUID'","color":14687043,"author":{"name":"CI/CD"}}]}' $DISCORD_WEBHOOK
+  - fi
+
+steps:
+  - step: &prepare-step
+      name: Prepare
+      script: *prepare
+      caches:
+        - node
+  - step: &build-deploy-step
+      name: Build & Deploy
+      size: 4x
+      oidc: true
+      script: *build-deploy
+      after-script: *after-script
+  - step: &migrate-step
+      name: Migrate
+      script: *migrate
+      runs-on:
+        - self.hosted
+        - linux
+
+clone:
+  depth: full
+
+pipelines:
+  pull-requests:
+    '':
+      - step:
+          name: Verify destination
+          script:
+            - if [[ $(git log -1 --pretty=%B) =~ (\[ci skip\])|(\[skip ci\]) ]]; then exit 1; fi
+            - echo Pipeline to branch $BITBUCKET_PR_DESTINATION_BRANCH
+            - if [ $BITBUCKET_PR_DESTINATION_BRANCH != "master" ]; then exit 1; fi
+      - step:
+          <<: *prepare-step
+          artifacts:
+            - node_modules/**
+
+      - stage:
+          name: Master pipeline
+          deployment: staging
+          trigger: manual
+          steps:
+            - step:
+                <<: *build-deploy-step
+                artifacts:
+                  - .env
+                #Nao sera rodado o build e deploy pois precisa de 16gb de ram e nao temos
+                # runs-on:
+                #   - self.hosted
+                #   - linux
+            - step:
+                <<: *migrate-step
+                artifacts:
+                  - .env
+            - step:
+                name: Notify Discord
+                script:
+                  - curl -X POST -H "Content-Type:application/json" -d '{"embeds":[{"title":"'$BITBUCKET_REPO_FULL_NAME' - New deploy to staging!","type":"rich","description":"There is new code deployed to the testing stage. A new PR is opened on the source code repository for code review! The PR can be found at https://bitbucket.org/'$BITBUCKET_REPO_FULL_NAME'/pull-requests/'$BITBUCKET_PR_ID'","color":15844367,"author":{"name":"CI/CD"}}]}' $DISCORD_WEBHOOK
+  branches:
+    dev:
+      - step:
+          <<: *prepare-step
+          artifacts:
+            - node_modules/**
+      - stage:
+          name: Master pipeline
+          deployment: test
+          steps:
+            - step:
+                <<: *build-deploy-step
+                artifacts:
+                  - .env
+            - step: *migrate-step
+
+    master:
+      - step:
+          <<: *prepare-step
+          artifacts:
+            - node_modules/**
+      - stage:
+          name: Master pipeline
+          deployment: production
+
+          steps:
+            - step:
+                <<: *build-deploy-step
+                artifacts:
+                  - .env
+                #Nao sera rodado o build e deploy pois precisa de 16gb de ram e nao temos
+                # runs-on:
+                #   - self.hosted
+                #   - linux
+            - step: *migrate-step
+            - step:
+                name: Notify Discord
+                script:
+                  - curl -X POST -H "Content-Type:application/json" -d '{"embeds":[{"title":"'$BITBUCKET_REPO_FULL_NAME' - New version online!","type":"rich","description":"A new branch was merged and deployed to production. This CI/CD execution can be found at https://bitbucket.org/'$BITBUCKET_REPO_FULL_NAME'/addon/pipelines/home#!/results/'$BITBUCKET_PIPELINE_UUID'","color":3066993,"author":{"name":"CI/CD"}}]}' $DISCORD_WEBHOOK

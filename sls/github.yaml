@@ -1,0 +1,39 @@
+name: Deploy Resource Manager
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.10'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Prepare Prisma Client Lambda Layer
+        run: bash ./src/scripts/ci/prepare-prisma-client-lambda-layer.sh
+
+      - name: Deploy with Serverless
+        env:
+          SLS_DEBUG: true
+          STAGE: ${{ github.ref == 'refs/heads/master' && 'prod' || 'staging' }}
+        run: |
+          serverless deploy --stage $STAGE --verbose
+          serverless export-env -s $STAGE

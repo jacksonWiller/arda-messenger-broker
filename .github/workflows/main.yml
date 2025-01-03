@@ -1,0 +1,38 @@
+name: Resource Manager
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+env:
+  _ENVIRONMENT: development
+  _REPOSITORY_NAME: github-action-nodejs-serverless
+
+jobs:
+  DeployServerless:
+    name: deploy
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [ 14.x ]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Npm install
+        run: npm install
+      - name: Serverless deploy
+        uses: serverless/github-action@v1
+        with:
+          args: deploy
+        env:
+          LOG_LEVEL: debug
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

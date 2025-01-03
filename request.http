@@ -1,0 +1,37 @@
+curl --location --request POST 'http://localhost:4000/hello' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "name": "Seu Nome"
+}'
+
+curl --location 'http://localhost:4000/products' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "name": "Produto Teste",
+    "price": 99.99,
+    "description": "Descrição do produto teste"
+}'
+
+curl --location 'http://localhost:4000/products' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "name": "Produto Teste",
+    "price": 99.99
+}'
+
+# Upload de imagem
+POST /images
+Content-Type: application/json
+{
+    "fileName": "imagem1.jpg",
+    "fileContent": "base64string..."
+}
+
+# Obter imagem
+GET /images/imagem1.jpg
+
+# Listar imagens
+GET /images
+
+# Deletar imagem
+DELETE /images/imagem1.jpg

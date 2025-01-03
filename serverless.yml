@@ -1,0 +1,189 @@
+service: mensseger-brocker
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  lambdaHashingVersion: '20201221'
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  environment:
+    DYNAMODB_TABLE: ${self:service}-${self:provider.stage}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - events:PutEvents
+            - events:CreateEventBus
+            - events:DeleteEventBus
+          Resource: "*" 
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: 
+            - Fn::GetAtt: [ ProductsTable, Arn ]
+        - Effect: Allow
+          Action:
+            - s3:CreateBucket
+            - s3:DeleteBucket 
+            - s3:ListBuckets
+            - s3:HeadBucket
+            - s3:PutBucketTagging
+            - s3:GetBucketTagging
+            - s3:PutObject
+            - s3:GetObject
+            - s3:ListBucket
+            - s3:DeleteObject
+          Resource: "*"
+
+functions:
+
+  test:
+    handler: src/functions/test/handler.test
+    events:
+      - httpApi:
+          path: /test
+          method: get
+
+  
+  processEvent:
+    handler: src/functions/events/handler.handler
+    events:
+      - eventBridge:
+          pattern:
+            source:
+              - custom.resource-manager
+
+
+  uploadImage:
+    handler: src/functions/files/handler.uploadImage
+    events:
+      - http:
+          path: images
+          method: post
+
+  getImage:
+    handler: src/functions/files/handler.getImage
+    events:
+      - http:
+          path: images/{key}
+          method: get
+
+  listImages:
+    handler: src/functions/files/handler.listImages
+    events:
+      - http:
+          path: images
+          method: get
+
+  deleteImage:
+    handler: src/functions/files/handler.deleteImage
+    events:
+      - http:
+          path: images/{key}
+          method: delete
+
+  createBucket:
+    handler: src/functions/bucket/handler.createBucket
+    events:
+      - http:
+          path: /buckets
+          method: post
+  
+  getAllBuckets:
+    handler: src/functions/bucket/handler.getAllBuckets
+    events:
+      - http:
+          path: /buckets
+          method: get
+  
+  deleteBucket:
+    handler: src/functions/bucket/handler.deleteBucket
+    events:
+      - http:
+          path: /buckets
+          method: delete
+
+  listProducts:
+    handler: src/functions/product/handler.list
+    events:
+      - http:
+          path: products
+          method: get
+        
+  createProduct:
+    handler: src/functions/product/handler.create
+    events:
+      - http:
+          path: products
+          method: post
+
+  # getProduct:
+  #   handler: src/functions/product/handler.get 
+  #   events:
+  #     - http:
+  #         path: products/{id}
+  #         method: get
+
+
+
+  # updateProduct:
+  #   handler: src/functions/product/handler.update
+  #   events:
+  #     - http:
+  #         path: products/{id}
+  #         method: put
+
+  # deleteProduct:
+  #   handler: src/functions/product/handler.remove
+  #   events:
+  #     - http:
+  #         path: products/{id}
+  #         method: delete
+
+resources:
+  Resources:
+    EventBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-events
+
+    EventBus:
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: ${self:service}-bus
+
+    EventRule:
+      Type: AWS::Events::Rule
+      Properties:
+        EventBusName: "event-bus-main"
+        EventPattern:
+          source:
+            - custom.resource-manager
+        State: ENABLED
+        Targets:
+           
+            Id: SaveEventToS3
+
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Product2
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline

@@ -1,0 +1,14 @@
+{
+    "version": "0",
+    "id": "test-event-id",
+    "detail-type": "ResourceCreated",
+    "source": "custom.resource-manager",
+    "account": "123456789012",
+    "time": "2024-03-14T12:00:00Z",
+    "region": "us-east-1",
+    "detail": {
+      "resourceId": "123",
+      "action": "create",
+      "timestamp": "2024-03-14T12:00:00Z"
+    }
+  }
