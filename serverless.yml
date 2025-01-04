@@ -42,9 +42,6 @@ provider:
             - s3:DeleteObject
           Resource: "*"
 
-package:
-  individually: true
-
 functions:
 
   test:
@@ -64,63 +61,63 @@ functions:
               - custom.resource-manager
 
 
-  uploadImage:
+  uploadEvent:
     handler: src/functions/files/handler.uploadImage
     events:
       - http:
           path: images
           method: post
 
-  getImage:
+  getEvent:
     handler: src/functions/files/handler.getImage
     events:
       - http:
           path: images/{key}
           method: get
 
-  listImages:
+  listEvent:
     handler: src/functions/files/handler.listImages
     events:
       - http:
           path: images
           method: get
 
-  deleteImage:
+  deleteEvent:
     handler: src/functions/files/handler.deleteImage
     events:
       - http:
           path: images/{key}
           method: delete
 
-  createBucket:
+  createEventBucket:
     handler: src/functions/bucket/handler.createBucket
     events:
       - http:
           path: /buckets
           method: post
   
-  getAllBuckets:
+  getAllEventBuckets:
     handler: src/functions/bucket/handler.getAllBuckets
     events:
       - http:
           path: /buckets
           method: get
   
-  deleteBucket:
+  deleteEventBucket:
     handler: src/functions/bucket/handler.deleteBucket
     events:
       - http:
           path: /buckets
           method: delete
 
-  listProducts:
+  listEventProducts:
     handler: src/functions/product/handler.list
     events:
       - http:
           path: products
           method: get
         
-  createProduct:
+  createEventProduct:
     handler: src/functions/product/handler.create
     events:
       - http:
