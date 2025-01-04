@@ -162,14 +162,14 @@ resources:
     EventRule:
       Type: AWS::Events::Rule
       Properties:
-        EventBusName: "event-bus-main"
-        EventPattern:
-          source:
-            - custom.resource-manager
-        State: ENABLED
-        Targets:
-           
-            Id: SaveEventToS3
+      EventBusName: "event-bus-main"
+      EventPattern:
+        source:
+        - custom.resource-manager
+    State: ENABLED
+    Targets:
+      - Id: SaveEventToS3
+        Arn: !GetAtt ProcessEventFunction.Arn
 
     ProductsTable:
       Type: AWS::DynamoDB::Table
@@ -182,7 +182,6 @@ resources:
           - AttributeName: id
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
-
 
 plugins:
   - serverless-plugin-typescript

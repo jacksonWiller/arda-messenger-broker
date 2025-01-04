@@ -15,7 +15,6 @@ export const handler = async (event: EventBridgeEvent<string, CustomEvent>): Pro
 
     console.log('Evento recebido:', event);
 
-    // Enviar evento para EventBridge
     await eventbridge.putEvents({
       Entries: [{
         Source: 'custom.resource-manager',
