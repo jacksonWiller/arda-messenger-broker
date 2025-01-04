@@ -42,6 +42,9 @@ provider:
             - s3:DeleteObject
           Resource: "*"
 
+package:
+  individually: true
+
 functions:
 
   test:
@@ -166,10 +169,10 @@ resources:
       EventPattern:
         source:
         - custom.resource-manager
-    State: ENABLED
-    Targets:
-      - Id: SaveEventToS3
-        Arn: !GetAtt ProcessEventFunction.Arn
+      State: ENABLED
+      Targets:
+        - Id: SaveEventToS3
+          Arn: !GetAtt ProcessEventFunction.Arn
 
     ProductsTable:
       Type: AWS::DynamoDB::Table
