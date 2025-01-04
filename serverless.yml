@@ -146,7 +146,7 @@ resources:
         State: ENABLED
         Targets:
           - Id: SaveEventToS3
-            Arn: !GetAtt ProcessEventFunction.Arn
+            Arn: !GetAtt ProcessEventLambdaFunction.Arn
 
     ProductsTable:
       Type: AWS::DynamoDB::Table
