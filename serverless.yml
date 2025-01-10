@@ -1,14 +1,13 @@
-service: mensseger-brocker
+service: message-broker
 frameworkVersion: '3'
 
 provider:
   name: aws
   runtime: nodejs18.x
-  lambdaHashingVersion: '20201221'
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-east-1'}
   environment:
-    DYNAMODB_TABLE: ${self:service}-${self:provider.stage}
+    EVENT_BUS_NAME: ${self:service}-bus-${sls:stage}
   iam:
     role:
       statements:
@@ -16,149 +15,42 @@ provider:
           Action:
             - events:PutEvents
             - events:CreateEventBus
-            - events:DeleteEventBus
-          Resource: "*" 
-        - Effect: Allow
-          Action:
-            - dynamodb:Query
-            - dynamodb:Scan
-            - dynamodb:GetItem
-            - dynamodb:PutItem
-            - dynamodb:UpdateItem
-            - dynamodb:DeleteItem
-          Resource: 
-            - Fn::GetAtt: [ ProductsTable, Arn ]
-        - Effect: Allow
-          Action:
-            - s3:CreateBucket
-            - s3:DeleteBucket 
-            - s3:ListBuckets
-            - s3:HeadBucket
-            - s3:PutBucketTagging
-            - s3:GetBucketTagging
-            - s3:PutObject
-            - s3:GetObject
-            - s3:ListBucket
-            - s3:DeleteObject
           Resource: "*"
 
 functions:
-
-  test:
-    handler: src/functions/test/handler.test
-    events:
-      - httpApi:
-          path: /test
-          method: get
-
-  
-  processEvent:
-    handler: src/functions/events/handler.handler
-    events:
-      - eventBridge:
-          pattern:
-            source:
-              - custom.resource-manager
-
-
-  uploadEvent:
-    handler: src/functions/files/handler.uploadImage
+  # Função que recebe o evento via HTTP
+  httpReceiver:
+    handler: src/functions/httpReceiver.handler
     events:
       - http:
-          path: images
+          path: /events
           method: post
+          cors: true
 
-  getEvent:
-    handler: src/functions/files/handler.getImage
-    events:
-      - http:
-          path: images/{key}
-          method: get
+  # processEventOne:
+  #   handler: src/functions/httpReceiverprocessEventOne.handler  
+  #   events:
+  #     - eventBridge:
+  #         eventBus: ${self:provider.environment.EVENT_BUS_NAME}
+  #         pattern:
+  #           source: ["message.broker"]
+  #           detail-type: ["EventOne"]
 
-  listEvent:
-    handler: src/functions/files/handler.listImages
-    events:
-      - http:
-          path: images
-          method: get
-
-  deleteEvent:
-    handler: src/functions/files/handler.deleteImage
-    events:
-      - http:
-          path: images/{key}
-          method: delete
-
-  createEventBucket:
-    handler: src/functions/bucket/handler.createBucket
-    events:
-      - http:
-          path: /buckets
-          method: post
-  
-  getAllEventBuckets:
-    handler: src/functions/bucket/handler.getAllBuckets
-    events:
-      - http:
-          path: /buckets
-          method: get
-  
-  deleteEventBucket:
-    handler: src/functions/bucket/handler.deleteBucket
-    events:
-      - http:
-          path: /buckets
-          method: delete
-
-  listEventProducts:
-    handler: src/functions/product/handler.list
-    events:
-      - http:
-          path: products
-          method: get
-        
-  createEventProduct:
-    handler: src/functions/product/handler.create
-    events:
-      - http:
-          path: products
-          method: post
+  # processEventTwo:
+  #   handler: src/functions/processEventTwo.handler
+  #   events:
+  #     - eventBridge:
+  #         eventBus: ${self:provider.environment.EVENT_BUS_NAME}
+  #         pattern:
+  #           source: ["message.broker"]
+  #           detail-type: ["EventTwo"]
 
 resources:
   Resources:
-    EventBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: ${self:service}-events
-
     EventBus:
       Type: AWS::Events::EventBus
       Properties:
-        Name: ${self:service}-bus
-
-    EventRule:
-      Type: AWS::Events::Rule
-      Properties:
-        EventBusName: "event-bus-main"
-        EventPattern:
-          source:
-            - custom.resource-manager
-        State: ENABLED
-        Targets:
-          - Id: SaveEventToS3
-            Arn: !GetAtt ProcessEventLambdaFunction.Arn
-
-    ProductsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: Product2
-        AttributeDefinitions:
-          - AttributeName: id
-            AttributeType: S
-        KeySchema:
-          - AttributeName: id
-            KeyType: HASH
-        BillingMode: PAY_PER_REQUEST
+        Name: ${self:provider.environment.EVENT_BUS_NAME}
 
 plugins:
   - serverless-plugin-typescript
