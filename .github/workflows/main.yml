@@ -1,4 +1,4 @@
-name: Menssege Brocker
+name: Deploy main branch
 
 on:
   workflow_dispatch:
