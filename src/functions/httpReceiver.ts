@@ -5,18 +5,34 @@ import AWS from 'aws-sdk';
 const eventbridge = new AWS.EventBridge();
 const s3 = new AWS.S3();
 
+interface CustomEvent {
+  resourceId: string;
+  action: string;
+  timestamp: string;
+}
+
 export const handler: APIGatewayProxyHandler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}');
     const { type, data } = body;
 
+    console.log('Evento recebido:', event);
+
     await eventbridge.putEvents({
       Entries: [{
-        EventBusName: process.env.EVENT_BUS_NAME,
-        Source: 'message.broker',
-        DetailType: type,
-        Detail: JSON.stringify(data)
+        Source: 'custom.resource-manager',
+        DetailType: 'ResourceCreated',
+        EventBusName: `${process.env.SERVICE_NAME}-bus`,
       }]
+    }).promise();
+
+    // Salvar no S3
+    const timestamp = new Date().toISOString();
+    await s3.putObject({
+      Bucket: `${process.env.SERVICE_NAME}-events`,
+      Key: `events/${timestamp}.json`,
+      Body: JSON.stringify(event),
+      ContentType: 'application/json'
     }).promise();
 
     return {
